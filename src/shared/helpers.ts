@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { Prisma } from '@prisma/client';
 
 // Type Predicate
