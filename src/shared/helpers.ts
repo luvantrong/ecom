@@ -1,4 +1,5 @@
-import { Prisma } from 'generated/prisma/client';
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+import { Prisma } from '@prisma/client';
 
 // Type Predicate
 export function isUniqueConstraintPrismaError(
