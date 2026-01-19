@@ -1,8 +1,13 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/await-thenable */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
-import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import {
+  HttpException,
+  Injectable,
+  UnauthorizedException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { addMilliseconds } from 'date-fns';
 import ms from 'ms';
 import envConfig from 'src/shared/config';
@@ -10,7 +15,12 @@ import { TypeOfVerificationCode } from 'src/shared/constants/auth.constant';
 import { generateOTP, isUniqueConstraintPrismaError } from 'src/shared/helpers';
 import { SharedUserRepository } from 'src/shared/repositories/shared-user.repo';
 import { HashingService } from 'src/shared/services/hashing.service';
-import { LoginBodyType, RegisterBodyType, SendOtpBodyType } from './auth.model';
+import {
+  LoginBodyType,
+  RefreshTokenBodyType,
+  RegisterBodyType,
+  SendOtpBodyType,
+} from './auth.model';
 import { AuthRepository } from './auth.repo';
 import { RolesService } from './roles.service';
 import { EmailService } from 'src/shared/services/email.service';
@@ -200,8 +210,60 @@ export class AuthService {
     };
   }
 
-  refreshToken(refreshToken: string) {
-    return `This action returns all auth ${refreshToken}`;
+  async refreshToken({
+    refreshToken,
+    userAgent,
+    ip,
+  }: RefreshTokenBodyType & { userAgent: string; ip: string }) {
+    try {
+      // 1. Kiểm tra refreshToken có hợp lệ hay không
+      const { userId } =
+        await this.tokenService.verifyRefreshToken(refreshToken);
+
+      // 2. Kiểm tra refreshToken có tồn tại trong database hay không
+      const refreshTokenInDb =
+        await this.authRepository.findUniqueRefreshTokenIncludeUserRole({
+          token: refreshToken,
+        });
+
+      if (!refreshTokenInDb) {
+        throw new UnauthorizedException('Refresh token has been used');
+      }
+      // 3. Cập nhật device
+      const {
+        deviceId,
+        user: { roleId, name: roleName },
+      } = refreshTokenInDb;
+      const $updateDevice = this.authRepository.updateDevice(deviceId, {
+        userAgent,
+        ip,
+      });
+      // 4. Xoá refresh token cũ
+      const $deleteRefreshToken = this.authRepository.deleteRefreshToken({
+        token: refreshToken,
+      });
+
+      // 5. Tạo mới access token và refresh token
+      const $tokens = this.generateTokens({
+        userId,
+        deviceId,
+        roleId,
+        roleName,
+      });
+
+      const [, , tokens] = await Promise.all([
+        $updateDevice,
+        $deleteRefreshToken,
+        $tokens,
+      ]);
+
+      return tokens;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new UnauthorizedException();
+    }
   }
 
   logout(refreshToken: string) {

@@ -1,13 +1,12 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
+import { ZodSerializerInterceptor } from 'nestjs-zod';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { SharedModule } from './shared/shared.module';
 import { AuthModule } from './routes/auth/auth.module';
-import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
-import CustomZodValidationPipe from './shared/pipes/custom-zod-validation.pipe';
-import { ZodSerializerInterceptor } from 'nestjs-zod';
 import { HttpExceptionFilter } from './shared/filters/http-exception.filter';
-import { CatchEverythingFilter } from './shared/filters/catch-everything.filter';
+import CustomZodValidationPipe from './shared/pipes/custom-zod-validation.pipe';
+import { SharedModule } from './shared/shared.module';
 
 @Module({
   imports: [SharedModule, AuthModule],
@@ -25,10 +24,6 @@ import { CatchEverythingFilter } from './shared/filters/catch-everything.filter'
     {
       provide: APP_FILTER,
       useClass: HttpExceptionFilter,
-    },
-    {
-      provide: APP_FILTER,
-      useClass: CatchEverythingFilter,
     },
   ],
 })
